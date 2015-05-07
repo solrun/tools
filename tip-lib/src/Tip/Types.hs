@@ -1,4 +1,4 @@
--- | The abstract syntax
+-- | the abstract syntax
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable, PatternGuards #-}
 {-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, TemplateHaskell, MultiParamTypeClasses #-}
 module Tip.Types where
@@ -27,13 +27,17 @@ infix 5 :@:
 
 data Expr a
   = Head a :@: [Expr a]
+  -- ^ Function application: always perfectly saturated.
+  --   Lambdas and locals are applied with 'At' as head.
   | Lcl (Local a)
   | Lam [Local a] (Expr a)
   -- Merge with Quant?
   | Match (Expr a) [Case a]
   -- ^ The default case comes first if there is one
   | Let (Local a) (Expr a) (Expr a)
-  -- Allow a list of bound variables, like in SMT-LIB?
+  -- ^ @Let (Local x t) b e@ = @(let ((l x)) b e)@
+  -- Unlike SMT-LIB, this does not accept a list of bound
+  -- variable-/expression-pairs. Fix?
   | Quant QuantInfo Quant [Local a] (Expr a)
   deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 
@@ -135,8 +139,12 @@ data Datatype a = Datatype
 
 data Constructor a = Constructor
   { con_name    :: a
+  -- ^ Constructor name (e.g. @Cons@)
   , con_discrim :: a
+  -- ^ Discriminator name (e.g. @is-Cons@)
   , con_args    :: [(a,Type a)]
+  -- ^ Argument types names of their projectors
+  --   (e.g. [(@head@,a),(@tail@,List a)])
   }
   deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 

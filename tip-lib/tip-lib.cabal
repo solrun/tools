@@ -43,6 +43,7 @@ library
     Tip.Pass.EqualFunctions
     Tip.Pass.Uncurry
     Tip.Pass.Pipeline
+    Tip.Pass.Specialise
 
     Tip.Parser.ErrM
     Tip.Parser.AbsTIP
@@ -59,6 +60,7 @@ library
                        split,
                        containers,
                        mtl,
+                       pretty-show,
                        pretty,
                        array
 

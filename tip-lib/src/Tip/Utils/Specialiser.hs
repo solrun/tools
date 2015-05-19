@@ -2,8 +2,9 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-module Tip.Pass.Specialise where
+module Tip.Utils.Specialiser (specialise, Rule(..), Expr(..), Void, absurd, Closed, subtermRules, subterms, Subst, Inst) where
 
 import Tip.Fresh
 import Tip.Utils
@@ -13,12 +14,11 @@ import Control.Monad
 import Data.Maybe
 import Data.List
 
-import Debug.Trace
-
-import Text.Show.Pretty hiding (Name,Con)
-
 data Void = Void !Void
   deriving (Eq,Ord,Show)
+
+absurd :: Void -> a
+absurd (Void v) = absurd v
 
 data Rule c a = Rule
   { rule_pre  :: Expr c a
@@ -26,7 +26,15 @@ data Rule c a = Rule
   , rule_post :: Expr c a
   -- ^ ...must be present in this activated expression
   }
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Functor)
+
+
+subtermRules :: Rule c a -> [Rule c a]
+subtermRules (Rule p q) = map (Rule p) (subterms q)
+
+subterms :: Expr c a -> [Expr c a]
+subterms e = e : case e of Var a    -> []
+                           Con _ es -> concatMap subterms es
 
 mapRuleCtx :: (c -> c') -> Rule c a -> Rule c' a
 mapRuleCtx c = bimapRule c id
@@ -52,7 +60,7 @@ ruleVars (Rule p q) = usort $ concatMap go [p,q]
   go (Con c es) = concatMap go es
 
 data Expr c a = Var a | Con c [Expr c a]
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Functor)
 
 type Closed c = Expr c Void
 
@@ -69,26 +77,27 @@ varOf :: Eq a => a -> Expr c a -> Bool
 x `varOf` Var y        = x == y
 x `varOf` Con _ es = any (x `varOf`) es
 
-specialise :: forall d c a . (Show d,Show c,Show a,Ord d,Ord c,Ord a) => [(d,[Rule c a])] -> [Closed c] -> ([(d,[Closed c])],[d])
-specialise decl_rules seeds =
-  ( usort $ go [ (d,r) | (d,rules) <- decl_rules, d `elem` free, r <- rules ] seeds
-  , scary
-  )
+specialise :: forall d c a . (Ord d,Ord c,Ord a) =>
+    [(d,[Rule c a])] -> [Closed c] -> ([(d,Subst a Void c)],[d])
+specialise decl_rules seeds = (which (usort (go seeds)), scary)
   where
   free0,free,scary :: [d]
   (usort -> free0,usort -> scary) = separate [ (d,r) | (d,rs) <- decl_rules, r <- rs ]
   free = free0 \\ scary
 
-  -- does not correctly calculate all instantiable rules
-  -- better to first just calculate all instances, and
-  -- then match those with the rules
-  go :: [(d,Rule c a)] -> [Closed c] -> [(d,[Closed c])]
-  go named_rules insts
+  named_rules :: [(d,Rule c a)]
+  named_rules = [ (d,r) | (d,rules) <- decl_rules, d `elem` free, r <- rules ]
+
+  go :: [Closed c] -> [Closed c]
+  go insts
     | null (new_insts \\ insts) = []
-    | otherwise                 = [ (d,is) | (d,(is,_)) <- new ] ++ go named_rules (new_insts `union` insts)
+    | otherwise                 = new_insts `union` go (new_insts `union` insts)
     where
     new_insts = usort $ map (snd . snd) new
     new = step named_rules insts
+
+  which :: [Closed c] -> [(d,Subst a Void c)]
+  which cls = usort [ (d,i) | (d,(i,_)) <- step named_rules cls ]
 
 -- Return the safe rules, and the scary rules
 separate :: (Ord a,Ord c) => [(name,Rule c a)] -> ([name],[name])
@@ -121,27 +130,23 @@ instPre r =
      return (close su (rule_pre r))
 
 close :: Eq a => [(a,Closed c)] -> Expr c a -> Closed c
-close su (Var v)        = fromMaybe (error "close") (lookup v su)
+close su (Var v)    = fromMaybe (error "close") (lookup v su)
 close su (Con c es) = Con c (map (close su) es)
 
 unnamedStep :: (Ord c,Ord a) => [Rule c a] -> [Closed c] -> [Closed c]
 unnamedStep rs = usort . map (snd . snd) . step (map ((,) ()) rs)
 
-step :: (Ord name,Ord c,Ord a) => [(name,Rule c a)] -> [Closed c] -> [(name,Inst c)]
+step :: (Ord name,Ord c,Ord a) => [(name,Rule c a)] -> [Closed c] -> [(name,Inst a c)]
 step rs = usort . concatMap (activateAll rs)
 
-activateAll :: (Ord c,Ord a) => [(name,Rule c a)] -> Closed c -> [(name,Inst c)]
+activateAll :: (Ord c,Ord a) => [(name,Rule c a)] -> Closed c -> [(name,Inst a c)]
 activateAll rs c = [ (name,c') | (name,rul) <- rs, Just c' <- [activateOne rul c] ]
 
-type Inst c = ([Closed c],Closed c)
+type Inst a c = (Subst a Void c,Closed c)
 
-activateOne :: (Ord c,Ord a) => Rule c a -> Closed c -> Maybe (Inst c)
+activateOne :: (Ord c,Ord a) => Rule c a -> Closed c -> Maybe (Inst a c)
 activateOne r@(Rule p q) e
-  = fmap (\ su ->
-           ( [ fromMaybe (error "activateOne") (lookup v su)
-             | v <- ruleVars r ]
-           , close su q))
-         (match p e)
+  = fmap (\ su -> (su, close su q)) (match p e)
 
 type Subst a b c = [(a,Expr c b)]
 
@@ -185,10 +190,10 @@ test2 =
   ]
 
 test3 =
-  [ Rule (Con "f" [Var "a"]) (Con "f" [Con "f" [Var "a"]])
+  [ Rule (Con "f" [Var "a"]) (Con "f" [Con "f'" [Var "a"]])
   ]
 
 test4 =
-  [ Rule (Con "f" [Var "a"]) (Con "g" [Con "g" [Var "a"]])
+  [ Rule (Con "f" [Var "a"]) (Con "g" [Con "g'" [Var "a"]])
   , Rule (Con "g" [Var "b"]) (Con "f" [Var "b"])
   ]

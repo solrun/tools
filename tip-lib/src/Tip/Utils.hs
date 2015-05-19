@@ -47,3 +47,8 @@ maximumOn f = f . F.maximumBy (comparing f)
 unionOn :: Ord b => (a -> b) -> [a] -> [a] -> [a]
 unionOn k = unionBy ((==) `on` k)
 
+-- | Pair up a list with its previous elements
+--
+-- > withPrevious "abc" = [('a',""),('b',"a"),('c',"ab")]
+withPrevious :: [a] -> [(a,[a])]
+withPrevious xs = zip xs (inits xs)

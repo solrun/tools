@@ -89,10 +89,10 @@ apply :: Expr a -> [Expr a] -> Expr a
 apply e es@(_:_) = Builtin At :@: (e:es)
 apply _ [] = ERROR("tried to construct nullary lambda function")
 
-applyType :: Ord a => [a] -> [Type a] -> Type a -> Type a
+applyType :: (TransformBi (Type a) (f a),Ord a) => [a] -> [Type a] -> f a -> f a
 applyType tvs tys ty
   | length tvs == length tys =
-      flip transformType ty $ \ty' ->
+      flip transformBi ty $ \ty' ->
         case ty' of
           TyVar x ->
             Map.findWithDefault ty' x m

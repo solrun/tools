@@ -13,10 +13,10 @@ import Data.Either (partitionEithers)
 import Control.Monad ((>=>))
 
 class Pass p where
-  runPass  :: Name a => p -> Theory a -> Fresh (Theory a)
+  runPass  :: (Show a,Name a) => p -> Theory a -> Fresh (Theory a)
   passName :: p -> String
 
-runPassLinted :: (Pass p, Name a) => p -> Theory a -> Fresh (Theory a)
+runPassLinted :: (Pass p,Show a,Name a) => p -> Theory a -> Fresh (Theory a)
 runPassLinted p = runPass p >=> lintM (passName p)
 
 -- | A sum type that supports 'Enum' and 'Bounded'
@@ -58,13 +58,13 @@ instance (Bounded a, Bounded b) => Bounded (Choice a b) where
   minBound = First  minBound
   maxBound = Second maxBound
 
-runPasses :: (Pass p,Name a) => [p] -> Theory a -> Fresh (Theory a)
+runPasses :: (Pass p,Show a,Name a) => [p] -> Theory a -> Fresh (Theory a)
 runPasses = go []
  where
   go _    [] = return
   go past (p:ps) =
         runPass p
-    >=> lintM (passName p ++ "(and " ++ intercalate "," past ++ ")")
+    >=> lintM (passName p ++ (if null past then "" else "(after " ++ intercalate "," past ++ ")"))
     >=> go (passName p:past) ps
 
 parsePass :: (Enum p,Bounded p,Pass p) => String -> Maybe p

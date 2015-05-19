@@ -9,6 +9,7 @@ module Tip.Passes
   , removeNewtype
   , uncurryTheory
   , negateConjecture
+  , typeSkolemConjecture
 
   -- * Match expressions
   , addMatch
@@ -23,6 +24,9 @@ module Tip.Passes
   , lambdaLift
   , letLift
   , axiomatizeLambdas
+
+  -- * Monomorphisation
+  , monomorphise
 
   -- * Building pass pipelines
   , StandardPass(..)
@@ -39,6 +43,7 @@ import Tip.Pass.RemoveNewtype
 import Tip.Pass.NegateConjecture
 import Tip.Pass.EqualFunctions
 import Tip.Pass.Lift
+import Tip.Pass.Monomorphise
 
 import Tip.Fresh
 
@@ -51,6 +56,7 @@ data StandardPass
   | RemoveNewtype
   | UncurryTheory
   | NegateConjecture
+  | TypeSkolemConjecture
   | AddMatch
   | CommuteMatch
   | RemoveMatch
@@ -59,6 +65,7 @@ data StandardPass
   | LambdaLift
   | LetLift
   | AxiomatizeLambdas
+  | Monomorphise
  deriving (Eq,Ord,Show,Enum,Bounded)
 
 instance Pass StandardPass where
@@ -69,6 +76,7 @@ instance Pass StandardPass where
     RemoveNewtype     -> return . removeNewtype
     UncurryTheory     -> uncurryTheory
     NegateConjecture  -> negateConjecture
+    TypeSkolemConjecture -> typeSkolemConjecture
     AddMatch          -> addMatch
     CommuteMatch      -> commuteMatch
     RemoveMatch       -> removeMatch
@@ -77,4 +85,5 @@ instance Pass StandardPass where
     LambdaLift        -> lambdaLift
     LetLift           -> letLift
     AxiomatizeLambdas -> axiomatizeLambdas
+    Monomorphise      -> monomorphise
 

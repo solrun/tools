@@ -28,14 +28,15 @@ import Data.Maybe
 import Text.PrettyPrint
 import Tip.Pretty.SMT
 import Data.List
---import Debug.Trace
+-- import Debug.Trace
 
 -- | Crashes if the theory is malformed
 lint :: (PrettyVar a, Ord a) => String -> Theory a -> Theory a
 lint pass thy0@(renameAvoiding [] return -> thy) =
-  -- trace ("Linting:" ++ pass ++ ":\n" ++ ppRender thy) $
+--   trace (" ==== Linting: " ++ pass ++ " ====\n" ++ ppRender thy0 ++ "\n ====") $
   case (lintTheory thy,lintTheory thy0) of
-    (Just doc,_) -> error ("Lint failed after " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
+    (Just doc,Nothing) -> error ("Only renamed lint pass failed(!!!) after " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
+    (Just doc,Just{})  -> error ("Lint failed after " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
     (_,Just doc) -> error ("Non-renamed linting pass failed!? " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
     (_,_)        -> thy0
 

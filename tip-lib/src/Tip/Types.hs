@@ -1,4 +1,5 @@
 -- | the abstract syntax
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable, PatternGuards #-}
 {-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, TemplateHaskell, MultiParamTypeClasses #-}
 module Tip.Types where
@@ -178,6 +179,41 @@ data Formula a = Formula
 data Role = Assert | Prove
   deriving (Eq,Ord,Show)
 
+-- * Other views of theories
+
+-- | The different kinds of declarations in a 'Theory'.
+data Decl a
+    = DataDecl (Datatype a)
+    | SortDecl (Sort a)
+    | SigDecl (Signature a)
+    | FuncDecl (Function a)
+    | AssertDecl (Formula a)
+  deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
+
+-- | 'Decl'arations in a 'Theory'
+theoryDecls :: Theory a -> [Decl a]
+theoryDecls (Theory{..}) =
+    map DataDecl thy_datatypes ++
+    map SortDecl thy_sorts ++
+    map SigDecl thy_sigs ++
+    map FuncDecl thy_funcs ++
+    map AssertDecl thy_asserts
+
+-- | Assemble a 'Theory' from some 'Decl'arations
+declsToTheory :: [Decl a] -> Theory a
+declsToTheory ds = Theory
+    { thy_datatypes = [ d | DataDecl d   <- ds ]
+    , thy_sorts     = [ d | SortDecl d   <- ds ]
+    , thy_sigs      = [ d | SigDecl d    <- ds ]
+    , thy_funcs     = [ d | FuncDecl d   <- ds ]
+    , thy_asserts   = [ d | AssertDecl d <- ds ]
+    }
+
+declsPass :: ([Decl a] -> [Decl b]) -> Theory a -> Theory b
+declsPass k = declsToTheory . k . theoryDecls
+
+-- Instances
+
 instanceUniverseBi [t| forall a . (Expr a,Expr a) |]
 instanceUniverseBi [t| forall a . (Function a,Expr a) |]
 instanceUniverseBi [t| forall a . (Function a,Global a) |]
@@ -202,6 +238,8 @@ instanceTransformBi [t| forall a . (Local a,Expr a) |]
 instanceTransformBi [t| forall a . (Pattern a,Expr a) |]
 instanceTransformBi [t| forall a . (Pattern a,Theory a) |]
 instanceTransformBi [t| forall a . (Type a,Theory a) |]
+instanceTransformBi [t| forall a . (Global a,Theory a) |]
+instanceTransformBi [t| forall a . (Type a,Decl a) |]
 instanceTransformBi [t| forall a . (Type a,Expr a) |]
 instanceTransformBi [t| forall a . (Type a,Type a) |]
 instance Monad m => TransformBiM m (Expr a) (Expr a) where

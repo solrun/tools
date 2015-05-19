@@ -32,6 +32,7 @@ library
 
     Tip.Renamer
     Tip.Utils.Renamer
+    Tip.Utils.Specialiser
   other-modules:
     Tip.Pass.AxiomatizeFuncdefs
     Tip.Pass.Lift
@@ -43,7 +44,7 @@ library
     Tip.Pass.EqualFunctions
     Tip.Pass.Uncurry
     Tip.Pass.Pipeline
-    Tip.Pass.Specialise
+    Tip.Pass.Monomorphise
 
     Tip.Parser.ErrM
     Tip.Parser.AbsTIP

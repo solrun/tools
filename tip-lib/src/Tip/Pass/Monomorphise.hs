@@ -95,7 +95,7 @@ renameDecl d su = case d of
   ty_args tvs = [ toType (fmap absurd e) | tv <- tvs, let Just e = lookup tv su ]
 
   ty_inst :: [a] -> Decl a -> Decl a
-  ty_inst tvs d = applyType tvs (ty_args tvs) d
+  ty_inst tvs d = error "Don't use (applyType tvs (ty_args tvs) d) because it goes down in other PolyTypes. See transformTypeInExpr"
 
   rename :: [a] -> a -> WriterT [((a,[Type a]),a)] Fresh a
   -- rename [] f = return f

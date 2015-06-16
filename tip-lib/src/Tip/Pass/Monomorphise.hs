@@ -167,12 +167,15 @@ toType (Con (TyBun bun) []) = BuiltinType bun
 close :: Expr (Con a) a -> Closed (Con a)
 close = fmap (error "contains variables")
 
+sigRule :: a -> [a] -> Type a -> Rule (Con a) a
+sigRule f tvs t = Rule (Con (Pred f) (map Var tvs)) (trType t)
+
 declToRule :: Ord a => Decl a -> [Rule (Con a) a]
 declToRule d = usort $ case d of
     SortDecl (Sort d tvs)         -> [Rule (Con (TCon d) (map Var tvs)) (Con Dummy [])]
     SigDecl (Signature f (PolyType tvs args res)) ->
-        [Rule (Con (Pred f) (map Var tvs)) (trType t) | t <- args ++ [res] ]
-    AssertDecl (Formula r tvs b)    -> coactive (exprRecords b)
+        [ sigRule f tvs t | t <- args ++ [res] ]
+    AssertDecl (Formula r tvs b)    -> coactive (exprRecords b) -- fix!
     DataDecl (Datatype tc tvs cons) ->
         let tcon x = Con (TCon x) (map Var tvs)
             pred x = Con (Pred x) (map Var tvs)
@@ -188,15 +191,23 @@ declToRule d = usort $ case d of
                | Constructor k d args <- cons
                ]
         -}
-       in  (coactive $ [tcon tc] ++ [ pred k | Constructor k d args <- cons ]) ++
+       in  (coactive $
+              [ tcon tc ] ++
+              [ pred f
+              | Constructor k d args <- cons
+              , f <- [k,d] ++ map fst args
+              ]) ++
+           [sigRule p tvs t | Constructor _ _ args <- cons, (p,t) <- args ]
+           {-
            [Rule (tcon tc) (Con Dummy [])] ++
            [Rule (pred k) (Con Dummy []) | Constructor k _ _ <- cons ] ++
            [Rule (pred d) (Con Dummy []) | Constructor _ d _ <- cons ] ++
            [Rule (pred p) (Con Dummy []) | Constructor _ _ args <- cons, (p,_) <- args ]
+           -}
 
     FuncDecl (Function f tvs args res body) ->
         {- concatMap subtermRules $ -}
-        [Rule (Con (Pred f) (map Var tvs)) (trType t) | t <- map lcl_type args ++ [res] ] ++
+        [ sigRule f tvs t | t <- map lcl_type args ++ [res] ] ++
         map (Rule (Con (Pred f) (map Var tvs))) (exprPredRecords body)
 
 coactive :: [Expr (Con a) a] -> [Rule (Con a) a]

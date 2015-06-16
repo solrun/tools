@@ -56,7 +56,9 @@ monomorphise' thy = do
         loops :: [Decl a]
         rules = [ (d,declToRule d) | d <- ds ]
         (insts,loops) = specialise rules seeds
-    traceM (show (pp (rules,(insts,loops))))
+    traceM (show (pp rules))
+    traceM (show (pp insts))
+    traceM (show (pp loops))
     (insts',renames) <- runWriterT (mapM (uncurry renameDecl) insts)
     return $ renameWith (renameRenames renames) (declsToTheory (insts' ++ loops))
 
@@ -131,8 +133,8 @@ data Con a = Pred a | TCon a | TyArr | TyBun BuiltinType | Dummy
   deriving (Eq,Ord,Show)
 
 instance Pretty a => Pretty (Con a) where
-  pp (Pred x)   = pp x
-  pp (TCon x)   = pp x
+  pp (Pred x)   = "Pred" <+> parens (pp x)
+  pp (TCon x)   = "TCon" <+> parens (pp x)
   pp TyArr      = "=>"
   pp (TyBun bu) = ppBuiltinType bu
   pp Dummy      = "dummy"
@@ -157,7 +159,7 @@ declToRule d = usort $ case d of
     SortDecl (Sort d arity)         -> [Rule (Con (Pred d) []) (Con Dummy [])]
     SigDecl (Signature f poly_type) -> [] -- get records here, too
     AssertDecl (Formula r tvs b)    -> coactive (exprRecords b)
-    DataDecl (Datatype tc tvs cons) -> coactive $
+    DataDecl (Datatype tc tvs cons) ->
         let pred x = Con (Pred x) (map Var tvs)
         {-
         let pred x = Con (Pred x) (map Var tvs)
@@ -171,7 +173,9 @@ declToRule d = usort $ case d of
                | Constructor k d args <- cons
                ]
         -}
-       in  [pred tc] ++ [ pred k | Constructor k d args <- cons ]
+       in  (coactive $ [pred tc] ++ [ pred k | Constructor k d args <- cons ]) ++
+           [Rule (pred tc) (Con Dummy [])]
+
     FuncDecl (Function f tvs args res body) ->
         concatMap subtermRules $ map (Rule (Con (Pred f) (map Var tvs))) (exprRecords body)
 

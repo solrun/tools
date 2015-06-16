@@ -106,7 +106,8 @@ trDecl x =
 
       DeclareSort s n ->
         do i <- addSym GlobalId s
-           return emptyTheory{ thy_sorts = [Sort i (fromIntegral n)] }
+           tvs <- mapM refresh (replicate n i)
+           return emptyTheory{ thy_sorts = [Sort i tvs] }
 
       DeclareFun fundecl ->
         do d <- trFunDecl fundecl

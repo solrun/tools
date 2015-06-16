@@ -104,8 +104,13 @@ renameWith su = transformBi (tyRename su) . transformBi gbl
 
 renameDecl :: forall a . Name a => Decl a -> Subst a Void (Con a) -> WriterT [((a,[Type a]),a)] Fresh (Decl a)
 renameDecl d su = case d of
-    SortDecl{} -> return d
-    SigDecl{}  -> error "inst: SigDecl TODO"
+    SortDecl (Sort s tvs)  -> do
+        s' <- rename tvs s
+        return (SortDecl s' [])
+    SigDecl (Signature f pt@(PolyType tvs _ _)) -> do
+        f' <- rename tvs f
+        let (args',res) = applyPolyType pt (ty_args tvs)
+        return (SigDecl (Signature f' (PolyType [] args' res)))
     AssertDecl (Formula r tvs b) ->
         return (ty_inst tvs (AssertDecl (Formula r [] b)))
 
@@ -164,8 +169,9 @@ close = fmap (error "contains variables")
 
 declToRule :: Ord a => Decl a -> [Rule (Con a) a]
 declToRule d = usort $ case d of
-    SortDecl (Sort d arity)         -> [Rule (Con (TCon d) []) (Con Dummy [])]
-    SigDecl (Signature f poly_type) -> [] -- get records here, too
+    SortDecl (Sort d tvs)         -> [Rule (Con (TCon d) (map Var tvs)) (Con Dummy [])]
+    SigDecl (Signature f (PolyType tvs args res)) ->
+        [Rule (Con (Pred f) (map Var tvs)) (trType t) | t <- args ++ [res] ]
     AssertDecl (Formula r tvs b)    -> coactive (exprRecords b)
     DataDecl (Datatype tc tvs cons) ->
         let tcon x = Con (TCon x) (map Var tvs)
@@ -190,6 +196,7 @@ declToRule d = usort $ case d of
 
     FuncDecl (Function f tvs args res body) ->
         {- concatMap subtermRules $ -}
+        [Rule (Con (Pred f) (map Var tvs)) (trType t) | t <- map lcl_type args ++ [res] ] ++
         map (Rule (Con (Pred f) (map Var tvs))) (exprPredRecords body)
 
 coactive :: [Expr (Con a) a] -> [Rule (Con a) a]

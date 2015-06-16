@@ -6,7 +6,7 @@ module Tip.Fresh where
 import Tip.Utils
 import Tip.Pretty
 import Control.Applicative hiding (empty)
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Arrow ((&&&))
 
 import Data.Foldable (Foldable)

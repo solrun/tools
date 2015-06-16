@@ -35,6 +35,12 @@ instance (PrettyVar a,PrettyVar b) => PrettyVar (Either a b) where
   varStr (Left x)  = varStr x
   varStr (Right y) = varStr y
 
+instance (Pretty a,Pretty b) => Pretty (a,b) where
+  pp (x,y) = parens (pp x <+> "," $\ pp y)
+
+instance (Pretty a) => Pretty [a] where
+  pp xs = brackets (fsep (punctuate "," (map pp xs)))
+
 -- | Variable to 'Doc'
 ppVar :: PrettyVar a => a -> Doc
 ppVar = text . varStr

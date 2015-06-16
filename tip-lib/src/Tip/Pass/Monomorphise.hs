@@ -2,6 +2,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Tip.Pass.Monomorphise where
 
 import Tip.Utils.Specialiser
@@ -11,6 +13,7 @@ import Tip.Core hiding (Expr)
 import qualified Tip.Core as Tip
 
 import Tip.Pretty
+import Tip.Pretty.SMT
 
 import Control.Monad
 import Control.Monad.Writer
@@ -27,17 +30,33 @@ return []
 trList :: (Type a -> Type a) -> [((a,[Type a]),a)] -> [((a,[Type a]),a)]
 trList = $(genTransformBi 'trListTYPE)
 
-monomorphise :: forall a . (Show a,Name a) => Theory a -> Fresh (Theory a)
-monomorphise thy = do
+newtype PPVar a = PPVar { unPPVar :: a }
+  deriving (Eq,Ord,PrettyVar)
+
+instance Name a => Name (PPVar a) where
+  fresh = fmap PPVar fresh
+  refresh = fmap PPVar . refresh . unPPVar
+  freshNamed = fmap PPVar . freshNamed
+  refreshNamed s n = fmap PPVar (refreshNamed s (unPPVar n))
+
+instance PrettyVar a => Pretty (PPVar a) where
+  pp (PPVar x) = ppVar x
+
+instance PrettyVar a => Show (PPVar a) where
+  show (PPVar x) = varStr x
+
+monomorphise :: forall a . Name a => Theory a -> Fresh (Theory a)
+monomorphise = fmap (fmap unPPVar) . monomorphise' . fmap PPVar
+
+monomorphise' :: forall a . (Name a,Pretty a) => Theory a -> Fresh (Theory a)
+monomorphise' thy = do
     let ds = theoryDecls thy
         seeds = theorySeeds thy
         insts :: [(Decl a,Subst a Void (Con a))]
         loops :: [Decl a]
         rules = [ (d,declToRule d) | d <- ds ]
         (insts,loops) = specialise rules seeds
-    traceM (show rules)
-    traceM (show insts)
-    traceM (show loops)
+    traceM (show (pp (rules,(insts,loops))))
     (insts',renames) <- runWriterT (mapM (uncurry renameDecl) insts)
     return $ renameWith (renameRenames renames) (declsToTheory (insts' ++ loops))
 
@@ -110,6 +129,13 @@ renameDecl d su = case d of
 
 data Con a = Pred a | TCon a | TyArr | TyBun BuiltinType | Dummy
   deriving (Eq,Ord,Show)
+
+instance Pretty a => Pretty (Con a) where
+  pp (Pred x)   = pp x
+  pp (TCon x)   = pp x
+  pp TyArr      = "=>"
+  pp (TyBun bu) = ppBuiltinType bu
+  pp Dummy      = "dummy"
 
 trType :: Type a -> Expr (Con a) a
 trType (TyCon tc ts)     = Con (TCon tc) (map trType ts)

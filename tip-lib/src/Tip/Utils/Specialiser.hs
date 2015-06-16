@@ -20,6 +20,9 @@ import Text.PrettyPrint
 data Void = Void !Void
   deriving (Eq,Ord,Show)
 
+instance Pretty Void where
+  pp = absurd
+
 absurd :: Void -> a
 absurd (Void v) = absurd v
 
@@ -31,10 +34,8 @@ data Rule c a = Rule
   }
   deriving (Eq,Ord,Show,Functor)
 
-{-
 instance (Pretty c,Pretty a) => Pretty (Rule c a) where
   pp (Rule p q) = pp p <+> "=>" $\ pp q
-  -}
 
 subtermRules :: Rule c a -> [Rule c a]
 subtermRules (Rule p q) = map (Rule p) (subterms q)
@@ -69,17 +70,18 @@ ruleVars (Rule p q) = usort $ concatMap go [p,q]
 data Expr c a = Var a | Con c [Expr c a]
   deriving (Eq,Ord,Show,Functor)
 
-{-
 instance (Pretty c,Pretty a) => Pretty (Expr c a) where
   pp (Var x)    = pp x
-  pp (Con k es) = pp k <+>
-  pp (Rule p q) = pp p <+> "=>" $\ pp q
--}
+  pp (Con k es) = parens (pp k <+> fsep (map pp es))
 
 type Closed c = Expr c Void
 
 data Sk c = Old c | Sk Int
   deriving (Eq,Ord,Show)
+
+instance Pretty c => Pretty (Sk c) where
+  pp (Old c) = pp c
+  pp (Sk i)  = int i
 
 instance Ord c => Name (Sk c) where
   fresh = Sk <$> fresh

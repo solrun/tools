@@ -60,8 +60,11 @@ monomorphise' thy = do
     traceM (show (pp rules))
     traceM (show (pp insts))
     traceM (show (pp loops))
-    (insts',renames) <- runWriterT (mapM (uncurry renameDecl) insts)
-    return $ renameWith (renameRenames renames) (declsToTheory (insts' ++ loops))
+    if null loops
+      then do
+        (insts',renames) <- runWriterT (mapM (uncurry renameDecl) insts)
+        return $ renameWith (renameRenames renames) (declsToTheory (insts' ++ loops))
+      else return thy
 
 theorySeeds :: Ord a => Theory a -> [Closed (Con a)]
 theorySeeds Theory{..} = usort (concat [ map close (exprRecords b) | Formula Prove [] b <- thy_asserts ])

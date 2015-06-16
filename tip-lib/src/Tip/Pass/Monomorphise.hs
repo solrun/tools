@@ -7,8 +7,8 @@ module Tip.Pass.Monomorphise where
 import Tip.Utils.Specialiser
 import Tip.Utils
 import Tip.Fresh
-import Tip hiding (Expr)
-import qualified Tip as Tip
+import Tip.Core hiding (Expr)
+import qualified Tip.Core as Tip
 
 import Tip.Pretty
 
@@ -33,7 +33,11 @@ monomorphise thy = do
         seeds = theorySeeds thy
         insts :: [(Decl a,Subst a Void (Con a))]
         loops :: [Decl a]
-        (insts,loops) = specialise [ (d,declToRule d) | d <- ds ] seeds
+        rules = [ (d,declToRule d) | d <- ds ]
+        (insts,loops) = specialise rules seeds
+    traceM (show rules)
+    traceM (show insts)
+    traceM (show loops)
     (insts',renames) <- runWriterT (mapM (uncurry renameDecl) insts)
     return $ renameWith (renameRenames renames) (declsToTheory (insts' ++ loops))
 
@@ -95,7 +99,7 @@ renameDecl d su = case d of
   ty_args tvs = [ toType (fmap absurd e) | tv <- tvs, let Just e = lookup tv su ]
 
   ty_inst :: [a] -> Decl a -> Decl a
-  ty_inst tvs d = error "Don't use (applyType tvs (ty_args tvs) d) because it goes down in other PolyTypes. See transformTypeInExpr"
+  ty_inst tvs d = applyTypeInDecl tvs (ty_args tvs) d
 
   rename :: [a] -> a -> WriterT [((a,[Type a]),a)] Fresh a
   -- rename [] f = return f

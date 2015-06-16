@@ -4,6 +4,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Tip.Utils.Specialiser (specialise, Rule(..), Expr(..), Void, absurd, Closed, subtermRules, subterms, Subst, Inst) where
 
 import Tip.Fresh
@@ -13,6 +14,8 @@ import Tip.Pretty
 import Control.Monad
 import Data.Maybe
 import Data.List
+
+import Text.PrettyPrint
 
 data Void = Void !Void
   deriving (Eq,Ord,Show)
@@ -28,6 +31,10 @@ data Rule c a = Rule
   }
   deriving (Eq,Ord,Show,Functor)
 
+{-
+instance (Pretty c,Pretty a) => Pretty (Rule c a) where
+  pp (Rule p q) = pp p <+> "=>" $\ pp q
+  -}
 
 subtermRules :: Rule c a -> [Rule c a]
 subtermRules (Rule p q) = map (Rule p) (subterms q)
@@ -61,6 +68,13 @@ ruleVars (Rule p q) = usort $ concatMap go [p,q]
 
 data Expr c a = Var a | Con c [Expr c a]
   deriving (Eq,Ord,Show,Functor)
+
+{-
+instance (Pretty c,Pretty a) => Pretty (Expr c a) where
+  pp (Var x)    = pp x
+  pp (Con k es) = pp k <+>
+  pp (Rule p q) = pp p <+> "=>" $\ pp q
+-}
 
 type Closed c = Expr c Void
 

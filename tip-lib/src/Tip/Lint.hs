@@ -17,10 +17,10 @@
 module Tip.Lint (lint, lintM, lintTheory) where
 
 #include "errors.h"
-import Tip
+import Tip.Core
 import Tip.Scope
 import Tip.Pretty
-import Tip.Renamer
+import Tip.Rename
 import Control.Monad
 import Control.Monad.Error
 import Control.Monad.State
@@ -34,11 +34,14 @@ import Data.List
 lint :: (PrettyVar a, Ord a) => String -> Theory a -> Theory a
 lint pass thy0@(renameAvoiding [] return -> thy) =
 --   trace (" ==== Linting: " ++ pass ++ " ====\n" ++ ppRender thy0 ++ "\n ====") $
-  case (lintTheory thy,lintTheory thy0) of
-    (Just doc,Nothing) -> error ("Only renamed lint pass failed(!!!) after " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
-    (Just doc,Just{})  -> error ("Lint failed after " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
-    (_,Just doc) -> error ("Non-renamed linting pass failed!? " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
-    (_,_)        -> thy0
+  case lintTheory thy0 of
+    Nothing -> thy0
+    Just doc ->
+      case lintTheory thy of
+        Just doc ->
+          error ("Lint failed after " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
+        Nothing ->
+          error ("Non-renamed linting pass failed!? " ++ pass ++ ":\n" ++ show doc ++ "\n!!!")
 
 -- | Same as 'lint', but returns in a monad, for convenience
 lintM :: (PrettyVar a, Ord a, Monad m) => String -> Theory a -> m (Theory a)
@@ -194,9 +197,13 @@ lintGlobal gbl@Global{..} = do
   unless (length gbl_args == length (polytype_tvs gbl_type)) $
     throwError (fsep ["Global" <+> pp gbl, "applied to type arguments", nest 2 (vcat (map pp gbl_args)), "but expects" <+> int (length (polytype_tvs gbl_type))])
   check ("Unbound global" <+> pp gbl) (isGlobal gbl_name)
-  -- scp <- get
-  -- check (fsep ["Global" <> pp gbl, "is used with type", nest 2 (ppPolyType gbl_type), "but was declared with type", nest 2 (ppPolyType (globalType (whichGlobal gbl_name scp)))]) $
-  --   \scp -> globalType (whichGlobal gbl_name scp) == gbl_type
+
+  scp <- get
+  check (fsep ["Global" <+> pp gbl, "occurs with type", nest 2 (ppPolyType gbl_type), "but was declared with type", nest 2 (ppPolyType (globalType (whichGlobal gbl_name scp)))]) $
+    \scp -> globalType (whichGlobal gbl_name scp) `polyEq` gbl_type
+    where
+      t `polyEq` PolyType{..} =
+        applyPolyType t (map TyVar polytype_tvs) == (polytype_args, polytype_res)
 
 lintCall :: (PrettyVar a, Ord a) => Head a -> [Expr a] -> [Type a] -> ScopeM a ()
 lintCall hd exprs args =
@@ -216,7 +223,7 @@ lintBuiltin Not _ = return [boolType]
 lintBuiltin Implies _ = return [boolType, boolType]
 lintBuiltin Equal [] = throwError "Nullary ="
 lintBuiltin Equal tys@(ty:_) = return (replicate (length tys) ty)
-lintBuiltin Equal [] = throwError "Nullary distinct"
+lintBuiltin Distinct [] = throwError "Nullary distinct"
 lintBuiltin Distinct tys@(ty:_) = return (replicate (length tys) ty)
 lintBuiltin IntAdd tys = return (replicate (length tys) intType)
 lintBuiltin IntSub _ = return [intType, intType]

@@ -5,8 +5,8 @@ import Text.PrettyPrint
 
 import Tip.Pretty
 import Tip.Types
-import Tip (ifView, topsort, neg, exprType, makeGlobal)
-import Tip.Renamer
+import Tip.Core (ifView, topsort, neg, exprType, makeGlobal)
+import Tip.Rename
 import Data.Maybe
 import Data.Char (isAlphaNum)
 
@@ -14,8 +14,8 @@ expr,parExpr,parExprSep :: Doc -> [Doc] -> Doc
 parExpr s [] = parens s
 parExpr s xs = ("(" <> s) $\ (fsep xs <> ")")
 
-parExprSep s [x]    = sep ["(" <> s,x <> ")"]
-parExprSep s (x:xs) = sep ["(" <> s,x] $\ (fsep xs <> ")")
+parExprSep s [x]    = ("(" <> s) $\ (x <> ")")
+parExprSep s (x:xs) = (("(" <> s) $\ x) $\ (fsep xs <> ")")
 parExprSep s xs     = parExpr s xs
 
 expr s [] = s
@@ -99,7 +99,7 @@ ppExpr (hd :@: es)  = exprSep (ppHead hd) (map ppExpr es)
 ppExpr (Lcl l)      = ppVar (lcl_name l)
 ppExpr (Lam ls e)   = parExprSep "lambda" [ppLocals ls,ppExpr e]
 ppExpr (Match e as) = "(match" $\ ppExpr e $\ (vcat (map ppCase as) <> ")")
-ppExpr (Let x b e)  = parExprSep "let" [parens (ppLocal x $\ ppExpr b), ppExpr e]
+ppExpr (Let x b e)  = parExprSep "let" [parens (parens (ppLocal x $\ ppExpr b)), ppExpr e]
 ppExpr (Quant _ q ls e) = parExprSep (ppQuant q) [ppLocals ls, ppExpr e]
 
 ppLocals :: PrettyVar a => [Local a] -> Doc
@@ -156,8 +156,8 @@ ppType :: PrettyVar a => Type a -> Doc
 ppType (TyVar x)     = ppVar x
 ppType (TyCon tc ts) = expr (ppVar tc) (map ppType ts)
 ppType (ts :=>: r)   = parExpr "=>" (map ppType (ts ++ [r]))
-ppType (BuiltinType Integer) = "int"
-ppType (BuiltinType Boolean) = "bool"
+ppType (BuiltinType Integer) = "Int"
+ppType (BuiltinType Boolean) = "Bool"
 
 -- Temporary use SMTLIB as the pretty printer:
 
@@ -199,6 +199,9 @@ instance PrettyVar a => Pretty (Global a) where
 
 instance PrettyVar a => Pretty (Head a) where
   pp = ppHead
+
+instance PrettyVar a => Pretty (Pattern a) where
+  pp = ppPat
 
 smtKeywords :: [String]
 smtKeywords =

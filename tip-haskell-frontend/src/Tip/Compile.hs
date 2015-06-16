@@ -6,7 +6,7 @@ import Tip.Dicts (inlineDicts)
 import Tip.GHCUtils
 import Tip.Params
 import Tip.ParseDSL
-import Tip.Scope
+import Tip.GHCScope
 import Tip.Unfoldings
 import Data.List.Split (splitOn)
 
@@ -43,7 +43,6 @@ compileHaskellFile params@Params{..} = do
 #if __GLASGOW_HASKELL__ >= 708
                 updateWays $
                 addWay' WayThreaded $
-                addWay' WayDyn $
 #endif
                      dflags0 { ghcMode = CompManager
                              , optLevel = 0
@@ -55,6 +54,7 @@ compileHaskellFile params@Params{..} = do
                         `gopt_unset` Opt_IgnoreInterfacePragmas
                         `gopt_unset` Opt_OmitInterfacePragmas
                         `gopt_set` Opt_ExposeAllUnfoldings
+                        `gopt_set` Opt_BuildDynamicToo
 #else
                         `dopt_unset` Opt_IgnoreInterfacePragmas
                         `dopt_unset` Opt_OmitInterfacePragmas
@@ -108,7 +108,7 @@ compileHaskellFile params@Params{..} = do
                 [ fix_id i
                 | i <- ids_in_scope
                 , varWithPropType i
-                , not (varFromPrelude i)
+                , not (varInTip i)
                 , null only || varToString i `elem` only'
                 ]
 
@@ -145,7 +145,7 @@ extraIds p@Params{..} prop_ids = do
         trans_ids = unionVarSets $
             map (transCalls With) (prop_ids ++ extra_ids)
 
-    let ids = varSetElems $ filterVarSet (\ x -> not (varFromPrelude x || varWithPropType x) && not (hasClass (varType x)))
+    let ids = varSetElems $ filterVarSet (\ x -> not (varInTip x || varWithPropType x) && not (hasClass (varType x)))
             trans_ids
 
     -- Filters out silly things like

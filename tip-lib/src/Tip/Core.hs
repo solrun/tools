@@ -4,8 +4,9 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
 -- | General functions for constructing and examining Tip syntax.
-module Tip(module Tip.Types, module Tip) where
+module Tip.Core(module Tip.Types, module Tip.Core) where
 
 #include "errors.h"
 import Tip.Types
@@ -33,21 +34,40 @@ infixr 0 ===>
 (===) :: Expr a -> Expr a -> Expr a
 e1 === e2 = Builtin Equal :@: [e1,e2]
 
+(=/=) :: Expr a -> Expr a -> Expr a
+e1 =/= e2 = Builtin Distinct :@: [e1,e2]
+
 neg :: Expr a -> Expr a
-neg e = Builtin Not :@: [e]
+neg (Builtin op :@: [e1,e2])
+  | Equal    <- op = e1 =/= e2
+  | Distinct <- op = e1 === e2
+neg e
+  | Just b <- boolView e = if b then falseExpr else trueExpr
+  | otherwise = Builtin Not :@: [e]
 
 (/\) :: Expr a -> Expr a -> Expr a
-e1 /\ e2 = Builtin And :@: [e1,e2]
+e1 /\ e2
+  | Just b <- boolView e1 = if b then e2 else falseExpr
+  | Just b <- boolView e2 = if b then e1 else falseExpr
+  | otherwise = Builtin And :@: [e1,e2]
 
 (\/) :: Expr a -> Expr a -> Expr a
-e1 \/ e2 = Builtin Or :@: [e1,e2]
+e1 \/ e2
+  | Just b <- boolView e1 = if b then trueExpr else e2
+  | Just b <- boolView e2 = if b then trueExpr else e1
+  | otherwise = Builtin Or :@: [e1,e2]
 
 ands :: [Expr a] -> Expr a
-ands [] = bool True
-ands xs = foldl1 (/\) xs
+ands xs = foldl (/\) trueExpr xs
+
+ors :: [Expr a] -> Expr a
+ors xs = foldl (\/) falseExpr xs
 
 (==>) :: Expr a -> Expr a -> Expr a
-a ==> b = Builtin Implies :@: [a,b]
+e1 ==> e2
+  | Just a <- boolView e1 = if a then e2 else trueExpr
+  | Just b <- boolView e2 = if b then trueExpr else neg e1
+  | otherwise = Builtin Implies :@: [e1,e2]
 
 (===>) :: [Expr a] -> Expr a -> Expr a
 xs ===> y = foldr (==>) y xs
@@ -64,6 +84,11 @@ trueExpr  = bool True
 
 falseExpr :: Expr a
 falseExpr = bool False
+
+makeIf :: Expr a -> Expr a -> Expr a -> Expr a
+makeIf c t f
+  | Just b <- boolView c = if b then t else f
+  | otherwise = Match c [Case (LitPat (Bool True)) t,Case (LitPat (Bool False)) f]
 
 intLit :: Integer -> Expr a
 intLit = literal . Int
@@ -89,27 +114,37 @@ apply :: Expr a -> [Expr a] -> Expr a
 apply e es@(_:_) = Builtin At :@: (e:es)
 apply _ [] = ERROR("tried to construct nullary lambda function")
 
-applyType :: (TransformBi (Type a) (f a),Ord a) => [a] -> [Type a] -> f a -> f a
-applyType tvs tys ty
-  | length tvs == length tys =
-      flip transformBi ty $ \ty' ->
-        case ty' of
-          TyVar x ->
-            Map.findWithDefault ty' x m
-          _ -> ty'
-  | otherwise = ERROR("wrong number of type arguments")
+applyTypeIn :: Ord a => ((Type a -> Type a) -> f a -> f a) -> [a] -> [Type a] -> f a -> f a
+applyTypeIn transformer tvs tys
+  | length tvs /= length tys = ERROR("wrong number of type arguments")
+  | otherwise = transformer $ \ty -> case ty of TyVar x -> Map.findWithDefault ty x m
+                                                _       -> ty
   where
     m = Map.fromList (zip tvs tys)
+
+applyType :: Ord a => [a] -> [Type a] -> Type a -> Type a
+applyType = applyTypeIn transformType
+
+applyTypeInExpr :: Ord a => [a] -> [Type a] -> Expr a -> Expr a
+applyTypeInExpr = applyTypeIn transformTypeInExpr
+
+applyTypeInDecl :: Ord a => [a] -> [Type a] -> Decl a -> Decl a
+applyTypeInDecl = applyTypeIn transformTypeInDecl
 
 applyPolyType :: Ord a => PolyType a -> [Type a] -> ([Type a], Type a)
 applyPolyType PolyType{..} tys =
   (map (applyType polytype_tvs tys) polytype_args,
    applyType polytype_tvs tys polytype_res)
 
-makeIf :: Expr a -> Expr a -> Expr a -> Expr a
-makeIf c t f = Match c [Case (LitPat (Bool True)) t,Case (LitPat (Bool False)) f]
-
 -- * Predicates and examinations on expressions
+
+litView :: Expr a -> Maybe Lit
+litView (Builtin (Lit l) :@: []) = Just l
+litView _ = Nothing
+
+boolView :: Expr a -> Maybe Bool
+boolView e = case litView e of Just (Bool b) -> Just b
+                               _             -> Nothing
 
 -- | A representation of Nested patterns, used in 'patternMatchingView'
 data DeepPattern a
@@ -174,6 +209,9 @@ atomic :: Expr a -> Bool
 atomic (_ :@: []) = True
 atomic Lcl{}      = True
 atomic _          = False
+
+occurrences :: Eq a => Local a -> Expr a -> Int
+occurrences var body = length (filter (== var) (universeBi body))
 
 -- | The signature of a function
 signature :: Function a -> Signature a
@@ -385,23 +423,24 @@ class Definition f where
   defines :: f a -> a
   uses    :: f a -> [a]
 
+data (f :+: g) a = InL (f a) | InR (g a)
+  deriving (Eq,Ord,Show,Functor)
+
+instance (Definition f,Definition g) => Definition (f :+: g) where
+  defines (InL x) = defines x
+  defines (InR y) = defines y
+  uses (InL x) = uses x
+  uses (InR y) = uses y
+
+instance Definition Signature where
+  defines = sig_name
+  uses _  = []
+
 instance Definition Function where
   defines = func_name
-  uses    = F.toList
+  uses    = F.toList . func_body
 
 instance Definition Datatype where
   defines = data_name
-  uses    = F.toList
-
--- * Assorted and miscellany
-
--- | Transforms @and@, @or@, @=>@ and @not@ into if (i.e. case)
-boolOpsToIf :: TransformBi (Expr a) (f a) => f a -> f a
-boolOpsToIf = transformExprIn $
-  \ e0 -> case e0 of
-    Builtin And :@: [a,b]     -> makeIf a b falseExpr
-    Builtin Or  :@: [a,b]     -> makeIf a trueExpr b
-    Builtin Not :@: [a]       -> makeIf a falseExpr trueExpr
-    Builtin Implies :@: [a,b] -> boolOpsToIf (neg a \/ b)
-    _ -> e0
+  uses    = concatMap F.toList . data_cons
 

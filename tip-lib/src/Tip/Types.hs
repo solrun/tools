@@ -58,7 +58,7 @@ data Builtin
   | Or
   | Not
   | Implies
-  | Equal    -- might have to add a (Type a) argument later
+  | Equal
   | Distinct
   | IntAdd
   | IntSub
@@ -70,6 +70,16 @@ data Builtin
   | IntLt
   | IntLe
   deriving (Eq,Ord,Show)
+
+intBuiltin :: Builtin -> Bool
+intBuiltin b = b `elem` [IntAdd,IntSub,IntMul,IntDiv,IntMod,IntGt,IntGe,IntLt,IntLe]
+
+litBuiltin :: Builtin -> Bool
+litBuiltin Lit{} = True
+litBuiltin _     = False
+
+eqRelatedBuiltin :: Builtin -> Bool
+eqRelatedBuiltin b = b `elem` [Equal,Distinct]
 
 logicalBuiltin :: Builtin -> Bool
 logicalBuiltin b = b `elem` [And,Or,Implies,Equal,Distinct,Not]
@@ -227,6 +237,7 @@ instanceUniverseBi [t| forall a . (Theory a,Type a) |]
 instanceUniverseBi [t| forall a . (Type a,Type a) |]
 instanceUniverseBi [t| forall a . (Theory a,Constructor a) |]
 instanceUniverseBi [t| forall a . (Theory a,Global a) |]
+instanceUniverseBi [t| forall a . (Theory a,Builtin) |]
 instanceTransformBi [t| forall a . (Expr a,Expr a) |]
 instanceTransformBi [t| forall a . (a,Expr a) |]
 instanceTransformBi [t| forall a . (a,Formula a) |]
@@ -243,18 +254,28 @@ instanceTransformBi [t| forall a . (Type a,Decl a) |]
 instanceTransformBi [t| forall a . (Type a,Expr a) |]
 instanceTransformBi [t| forall a . (Type a,Type a) |]
 instance Monad m => TransformBiM m (Expr a) (Expr a) where
+  {-# INLINE transformBiM #-}
   transformBiM = $(genTransformBiM' [t| forall m a . (Expr a -> m (Expr a)) -> Expr a -> m (Expr a) |])
 instance Monad m => TransformBiM m (Expr a) (Function a) where
+  {-# INLINE transformBiM #-}
   transformBiM = $(genTransformBiM' [t| forall m a . (Expr a -> m (Expr a)) -> Function a -> m (Function a) |])
 instance Monad m => TransformBiM m (Pattern a) (Expr a) where
+  {-# INLINE transformBiM #-}
   transformBiM = $(genTransformBiM' [t| forall m a . (Pattern a -> m (Pattern a)) -> Expr a -> m (Expr a) |])
 instance Monad m => TransformBiM m (Local a) (Expr a) where
+  {-# INLINE transformBiM #-}
   transformBiM = $(genTransformBiM' [t| forall m a . (Local a -> m (Local a)) -> Expr a -> m (Expr a) |])
 instance Monad m => TransformBiM m (Expr a) (Theory a) where
+  {-# INLINE transformBiM #-}
   transformBiM = $(genTransformBiM' [t| forall m a . (Expr a -> m (Expr a)) -> Theory a -> m (Theory a) |])
+instance Monad m => TransformBiM m (Expr a) (Formula a) where
+  {-# INLINE transformBiM #-}
+  transformBiM = $(genTransformBiM' [t| forall m a . (Expr a -> m (Expr a)) -> Formula a -> m (Formula a) |])
 instance Monad m => TransformBiM m (Type a) (Type a) where
+  {-# INLINE transformBiM #-}
   transformBiM = $(genTransformBiM' [t| forall m a . (Type a -> m (Type a)) -> Type a -> m (Type a) |])
 instance Monad m => TransformBiM m (Function a) (Theory a) where
+  {-# INLINE transformBiM #-}
   transformBiM = $(genTransformBiM' [t| forall m a . (Function a -> m (Function a)) -> Theory a -> m (Theory a) |])
 
 transformExpr :: (Expr a -> Expr a) -> Expr a -> Expr a
@@ -276,5 +297,8 @@ transformTypeInExpr :: (Type a -> Type a) -> Expr a -> Expr a
 transformTypeInExpr =
   $(genTransformBiT' [[t|PolyType|]] [t|forall a. (Type a -> Type a) -> Expr a -> Expr a|])
 
+transformTypeInDecl :: (Type a -> Type a) -> Decl a -> Decl a
+transformTypeInDecl =
+  $(genTransformBiT' [[t|PolyType|]] [t|forall a. (Type a -> Type a) -> Decl a -> Decl a|])
 
 

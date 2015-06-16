@@ -12,6 +12,8 @@ import Tip.Fresh
 import Tip.Core hiding (Expr)
 import qualified Tip.Core as Tip
 
+import Data.Foldable as F
+
 import Tip.Pretty
 import Text.PrettyPrint
 import Tip.Pretty.SMT
@@ -175,7 +177,12 @@ declToRule d = usort $ case d of
     SortDecl (Sort d tvs)         -> [Rule (Con (TCon d) (map Var tvs)) (Con Dummy [])]
     SigDecl (Signature f (PolyType tvs args res)) ->
         [ sigRule f tvs t | t <- args ++ [res] ]
-    AssertDecl (Formula r tvs b)    -> coactive (exprRecords b) -- fix!
+    AssertDecl (Formula r tvs b)    ->
+        [ rule
+        | rule@(Rule pre _) <- coactive (exprRecords b)
+        , and [ t `elem` F.toList pre | t <- tvs ]
+          -- all tvs needs to be present in the precondition (the trigger)!
+        ]
     DataDecl (Datatype tc tvs cons) ->
         let tcon x = Con (TCon x) (map Var tvs)
             pred x = Con (Pred x) (map Var tvs)
@@ -211,5 +218,5 @@ declToRule d = usort $ case d of
         map (Rule (Con (Pred f) (map Var tvs))) (exprPredRecords body)
 
 coactive :: [Expr (Con a) a] -> [Rule (Con a) a]
-coactive es = {- concatMap subtermRules -} [ Rule p q | (p,qs) <- withPrevious es, q <- qs ]
+coactive es = [ Rule p q | (p,qs) <- withPrevious es, q <- qs ]
 

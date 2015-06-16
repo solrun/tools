@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Tip.Utils.Specialiser (specialise, Rule(..), Expr(..), Void, absurd, Closed, subtermRules, subterms, Subst, Inst) where
@@ -14,6 +14,8 @@ import Tip.Pretty
 import Control.Monad
 import Data.Maybe
 import Data.List
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 
 import Text.PrettyPrint
 
@@ -32,7 +34,7 @@ data Rule c a = Rule
   , rule_post :: Expr c a
   -- ^ ...must be present in this activated expression
   }
-  deriving (Eq,Ord,Show,Functor)
+  deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 
 instance (Pretty c,Pretty a) => Pretty (Rule c a) where
   pp (Rule p q) = pp p <+> "=>" $\ pp q
@@ -68,7 +70,7 @@ ruleVars (Rule p q) = usort $ concatMap go [p,q]
   go (Con c es) = concatMap go es
 
 data Expr c a = Var a | Con c [Expr c a]
-  deriving (Eq,Ord,Show,Functor)
+  deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 
 instance (Pretty c,Pretty a) => Pretty (Expr c a) where
   pp (Var x)    = pp x
@@ -77,7 +79,7 @@ instance (Pretty c,Pretty a) => Pretty (Expr c a) where
 type Closed c = Expr c Void
 
 data Sk c = Old c | Sk Int
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 
 instance Pretty c => Pretty (Sk c) where
   pp (Old c) = pp c

@@ -44,7 +44,7 @@ ppTheory (renameAvoiding smtKeywords validSMTChar -> Theory{..})
       ["(check-sat)"])
 
 ppSort :: PrettyVar a => Sort a -> Doc
-ppSort (Sort sort n) = parExpr "declare-sort" [ppVar sort, int n]
+ppSort (Sort sort tvs) = parExpr "declare-sort" [ppVar sort, int (length tvs)]
 
 ppDatas :: PrettyVar a => [Datatype a] -> Doc
 ppDatas datatypes@(Datatype _ tyvars _:_) =

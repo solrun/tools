@@ -198,6 +198,9 @@ instance (Ord a, PrettyVar a) => Pretty (Formula a) where
 instance PrettyVar a => Pretty (Datatype a) where
   pp = ppDatas . return
 
+instance PrettyVar a => Pretty (Sort a) where
+  pp = ppSort
+
 instance PrettyVar a => Pretty (Signature a) where
   pp = ppUninterp
 

@@ -63,6 +63,7 @@ lintTheory thy@Theory{..} =
   either Just (const Nothing) .
   runScope . withTheory thy $ inContext thy $ do
     mapM_ lintDatatype thy_datatypes
+    mapM_ lintSort thy_sorts
     mapM_ lintSignature thy_sigs
     mapM_ lintFunction thy_funcs
     mapM_ lintFormula thy_asserts
@@ -74,6 +75,11 @@ lintDatatype dt@Datatype{..} =
     forM_ data_cons $ \Constructor{..} -> do
       forM_ con_args $ \(_, ty) ->
         lintType ty
+
+lintSort :: (PrettyVar a, Ord a) => Sort a -> ScopeM a ()
+lintSort sort@Sort{..} =
+  local $ inContext sort $
+    mapM_ newTyVar sort_tvs
 
 lintPolyType :: (PrettyVar a, Ord a) => PolyType a -> ScopeM a ()
 lintPolyType polyty@PolyType{..} =

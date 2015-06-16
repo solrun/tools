@@ -98,7 +98,7 @@ lintType (TyCon x tys) = do
   case info of
     TyVarInfo ->
       throwError (fsep ["Type variable", nest 2 (ppVar x), "used as type constructor"])
-    SortInfo n -> checkArity n
+    SortInfo Sort{..} -> checkArity (length sort_tvs)
     DatatypeInfo Datatype{..} -> checkArity (length data_tvs)
   mapM_ lintType tys
 lintType (args :=>: res) = do

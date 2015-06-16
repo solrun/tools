@@ -137,7 +137,7 @@ data Signature a = Signature
 -- | Uninterpreted sort
 data Sort a = Sort
   { sort_name :: a
-  , sort_arity :: Int }
+  , sort_tvs  :: [a] }
   deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 
 -- | Data definition

@@ -30,7 +30,7 @@ typeSkolemConjecture thy =
     tvs' <- mapM (refreshNamed "sk_") tvs
     return thy {
       thy_asserts = Formula Prove [] (makeTyCons (zip tvs tvs') form):thy_asserts thy,
-      thy_sorts = [ Sort tv 0 | tv <- tvs' ] ++ thy_sorts thy }
+      thy_sorts = [ Sort tv [] | tv <- tvs' ] ++ thy_sorts thy }
 
   makeTyCons tvs =
     transformTypeInExpr $ \ty ->

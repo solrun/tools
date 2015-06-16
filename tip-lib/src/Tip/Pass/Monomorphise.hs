@@ -13,6 +13,7 @@ import Tip.Core hiding (Expr)
 import qualified Tip.Core as Tip
 
 import Tip.Pretty
+import Text.PrettyPrint
 import Tip.Pretty.SMT
 
 import Control.Monad

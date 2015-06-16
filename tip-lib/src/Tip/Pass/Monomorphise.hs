@@ -66,12 +66,16 @@ monomorphise' thy = do
 theorySeeds :: Ord a => Theory a -> [Closed (Con a)]
 theorySeeds Theory{..} = usort (concat [ map close (exprRecords b) | Formula Prove [] b <- thy_asserts ])
 
-exprRecords :: forall a . Ord a => Tip.Expr a -> [Expr (Con a) a]
-exprRecords e =
+exprPredRecords :: forall a . Ord a => Tip.Expr a -> [Expr (Con a) a]
+exprPredRecords e =
     [ Con (Pred gbl_name) (map trType gbl_args)
     | Global{..} <- universeBi e
-    ] ++
-    [ Con (Pred tc) (map trType args)
+    ]
+
+exprRecords :: forall a . Ord a => Tip.Expr a -> [Expr (Con a) a]
+exprRecords e =
+    exprPredRecords e ++
+    [ Con (TCon tc) (map trType args)
     | Lcl (Local{..}) :: Tip.Expr a <- universeBi e
     , TyCon tc args :: Type a <- universeBi lcl_type
     ]
@@ -157,11 +161,12 @@ close = fmap (error "contains variables")
 
 declToRule :: Ord a => Decl a -> [Rule (Con a) a]
 declToRule d = usort $ case d of
-    SortDecl (Sort d arity)         -> [Rule (Con (Pred d) []) (Con Dummy [])]
+    SortDecl (Sort d arity)         -> [Rule (Con (TCon d) []) (Con Dummy [])]
     SigDecl (Signature f poly_type) -> [] -- get records here, too
     AssertDecl (Formula r tvs b)    -> coactive (exprRecords b)
     DataDecl (Datatype tc tvs cons) ->
-        let pred x = Con (Pred x) (map Var tvs)
+        let tcon x = Con (TCon x) (map Var tvs)
+            pred x = Con (Pred x) (map Var tvs)
         {-
         let pred x = Con (Pred x) (map Var tvs)
         in  [pred tc] ++
@@ -174,12 +179,14 @@ declToRule d = usort $ case d of
                | Constructor k d args <- cons
                ]
         -}
-       in  (coactive $ [pred tc] ++ [ pred k | Constructor k d args <- cons ]) ++
-           [Rule (pred tc) (Con Dummy [])]
+       in  (coactive $ [tcon tc] ++ [ pred k | Constructor k d args <- cons ]) ++
+           [Rule (tcon tc) (Con Dummy [])] ++
+           [Rule (pred k) (Con Dummy []) | Constructor k _ _ <- cons ]
 
     FuncDecl (Function f tvs args res body) ->
-        concatMap subtermRules $ map (Rule (Con (Pred f) (map Var tvs))) (exprRecords body)
+        {- concatMap subtermRules $ -}
+        map (Rule (Con (Pred f) (map Var tvs))) (exprPredRecords body)
 
 coactive :: [Expr (Con a) a] -> [Rule (Con a) a]
-coactive es = concatMap subtermRules [ Rule p q | (p,qs) <- withPrevious es, q <- qs ]
+coactive es = {- concatMap subtermRules -} [ Rule p q | (p,qs) <- withPrevious es, q <- qs ]
 

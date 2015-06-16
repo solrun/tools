@@ -106,7 +106,7 @@ renameDecl :: forall a . Name a => Decl a -> Subst a Void (Con a) -> WriterT [((
 renameDecl d su = case d of
     SortDecl (Sort s tvs)  -> do
         s' <- rename tvs s
-        return (SortDecl s' [])
+        return (SortDecl (Sort s' []))
     SigDecl (Signature f pt@(PolyType tvs _ _)) -> do
         f' <- rename tvs f
         let (args',res) = applyPolyType pt (ty_args tvs)

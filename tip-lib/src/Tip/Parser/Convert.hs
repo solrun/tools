@@ -97,7 +97,8 @@ trDecl x =
         do -- add their types, abstractly
            forM_ datatypes $ \dt -> do
              sym <- addSym GlobalId (dataSym dt)
-             newSort (Sort sym (length tvs))
+             tvi <- mapM (addSym LocalId) tvs
+             newSort (Sort sym tvi)
            newScope $
              do tvi <- mapM (addSym LocalId) tvs
                 mapM newTyVar tvi
@@ -106,7 +107,7 @@ trDecl x =
 
       DeclareSort s n ->
         do i <- addSym GlobalId s
-           tvs <- mapM refresh (replicate n i)
+           tvs <- lift . lift $ mapM refresh (replicate (fromInteger n) i)
            return emptyTheory{ thy_sorts = [Sort i tvs] }
 
       DeclareFun fundecl ->

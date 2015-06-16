@@ -123,8 +123,8 @@ trTheory' thy@Theory{..} =
     ]
 
   tr_sort :: Sort a -> Decl a
-  tr_sort (Sort _ i) | i /= 0 = error "Higher-kinded abstract sort"
-  tr_sort (Sort s i) = TypeDef (TyCon s []) (TyCon (prelude "Int") [])
+  tr_sort (Sort s i) | null i = TypeDef (TyCon s []) (TyCon (prelude "Int") [])
+  tr_sort (Sort _ _) = error "Haskell.Translate: Poly-kinded abstract sort"
 
   tr_sig :: Signature a -> [Decl a]
   tr_sig (Signature f pt) =

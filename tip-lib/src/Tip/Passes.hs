@@ -146,7 +146,7 @@ instance Pass StandardPass where
       unitPass AxiomatizeLambdas $
         help "Eliminate lambdas by axiomatisation (requires --lambda-lift)",
       unitPass Monomorphise $
-        help "Monomorphise the problem",
+        help "Try to monomorphise the problem",
       unitPass CSEMatch $
         help "Perform CSE on match scrutinees",
       unitPass CSEMatchWhy3 $

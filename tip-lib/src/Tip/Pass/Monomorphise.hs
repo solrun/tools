@@ -184,7 +184,9 @@ declToRule d = usort $ case d of
         -}
        in  (coactive $ [tcon tc] ++ [ pred k | Constructor k d args <- cons ]) ++
            [Rule (tcon tc) (Con Dummy [])] ++
-           [Rule (pred k) (Con Dummy []) | Constructor k _ _ <- cons ]
+           [Rule (pred k) (Con Dummy []) | Constructor k _ _ <- cons ] ++
+           [Rule (pred d) (Con Dummy []) | Constructor _ d _ <- cons ] ++
+           [Rule (pred p) (Con Dummy []) | Constructor _ _ args <- cons, (p,_) <- args ]
 
     FuncDecl (Function f tvs args res body) ->
         {- concatMap subtermRules $ -}

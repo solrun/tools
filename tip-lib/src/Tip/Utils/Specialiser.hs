@@ -16,6 +16,9 @@ import Tip.Fresh
 import Tip.Utils
 import Tip.Pretty
 
+import Control.Termination
+import Data.Functor.Contravariant
+
 import Control.Monad
 import Data.Maybe
 -- import Data.List
@@ -31,6 +34,8 @@ import Text.PrettyPrint
 
 import Debug.Trace
 
+-- traceShow x y = y
+
 data Expr c a = Var a | Con c [Expr c a]
   deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 
@@ -43,6 +48,56 @@ data Rule c a = Rule
   deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 
 return []
+
+data ExprF c a r = VAR a | CON c [r]
+  deriving Functor
+
+data ListF a r = NIL | CONS a r
+  deriving Functor
+
+type EXPR c a = Fix (ExprF c a)
+
+type LIST a = Fix (ListF a)
+
+newtype Fin a = Fin a
+  deriving (Eq)
+
+instance Eq a => Finite (Fin a)
+
+morallyFiniteT :: Eq a => TTest a
+morallyFiniteT = contramap Fin finiteT
+
+fromList :: [a] -> LIST a
+fromList []     = Roll NIL
+fromList (x:xs) = Roll (CONS x (fromList xs))
+
+fromExpr :: Expr c a -> EXPR c a
+fromExpr (Var x)    = Roll (VAR x)
+fromExpr (Con x xs) = Roll (CON x (map fromExpr xs))
+
+-- toList :: Fix (ListF a) -> [a]
+
+listT :: forall a . TTest a -> TTest [a]
+listT t = contramap fromList (fixT kids id f)
+  where
+  kids NIL = []
+  kids (CONS _ xs) = [xs]
+
+  f :: forall rec . TTest rec -> TTest (ListF a rec)
+  f test = contramap (\ u        -> case u of NIL       -> Left ()
+                                              CONS x xs -> Right (x,xs))
+                     (eitherT unitT (pairT t test))
+
+exprT :: forall c a . (Eq c, Eq a) => TTest (Expr c a)
+exprT = contramap fromExpr (fixT kids id f)
+  where
+  kids VAR{}      = []
+  kids (CON _ xs) = xs
+
+  f :: forall rec . TTest rec -> TTest (ExprF c a rec)
+  f test = contramap (\ u ->        case u of VAR x    -> Left x
+                                              CON c xs -> Right (c,xs))
+                     (eitherT morallyFiniteT (pairT morallyFiniteT (listT test)))
 
 bimapRule :: (c -> c') -> (a -> a') -> Rule c a -> Rule c' a'
 bimapRule = $(genFmap ''Rule)
@@ -122,8 +177,8 @@ separate :: (Ctx a,Ctx c) => [(name,Rule c a)] -> ([name],[name])
 separate = go []
   where
   go rs ((n,r):xs)
-    | isJust (terminating (r:rs)) = let (a,b) = go (r:rs) xs in (n:a,b  )
-    | otherwise                   = let (a,b) = go rs     xs in (  a,n:b)
+    | terminating (r:rs) = let (a,b) = go (r:rs) xs in (n:a,b  )
+    | otherwise          = let (a,b) = go rs     xs in (  a,n:b)
   go _ _ = ([],[])
 
 cyclic :: (Ctx a,Ctx c) => Expr c a -> Expr c a -> Bool
@@ -134,20 +189,19 @@ cyclic' e1 e2 | Just m0 <- match e1 e2
               = or [ x `varOf` e | (x,e) <- m0, e /= Var x ]
 cyclic' _  _  = False
 
-terminating :: forall a c . (Ctx a,Ctx c) => [Rule c a] -> Maybe [Closed (Sk c)]
-terminating (map (mapRuleCtx Old) -> rs) = go [] (inst rs)
+terminating :: forall a c . (Ctx a,Ctx c) => [Rule c a] -> Bool
+terminating (map (mapRuleCtx Old) -> rs) = all (go []) (inst rs)
   where
-  go :: [Closed (Sk c)] -> [Closed (Sk c)] -> Maybe [Closed (Sk c)]
-  go old []  = Just old
-  go old new | or [ cyclic (unSkolem o) (unSkolem n) | o <- old, n <- new ] = Nothing
-  go old new = let both = old `union` new in go both (unnamedStep rs new \\ both)
+  go :: [Closed (Sk c)] -> Closed (Sk c) -> Bool
+  go old new = traceShow ("go" $\ sep ["old:" $\ pp old, "new:" $\ pp new]) (go' old new)
+  go' old new | or [ cyclic (unSkolem o) (unSkolem new) | o <- old ] = False
+  go' old new = let both = old `union` [new] in all (go both) (unnamedStep rs [new] \\ both)
 
 union :: Ord a => [a] -> [a] -> [a]
-union (S.toList -> s1) (S.toList -> s2) = S.fromList (s1 `S.union` s2)
+union (S.fromList -> s1) (S.fromList -> s2) = S.toList (s1 `S.union` s2)
 
 (\\) :: Ord a => [a] -> [a] -> [a]
-(\\) (S.toList -> s1) (S.toList -> s2) = S.fromList (s1 S.\\ s2)
-
+(\\) (S.fromList -> s1) (S.fromList -> s2) = S.toList (s1 S.\\ s2)
 
 inst :: (Ctx a,Ctx c) => [Rule (Sk c) a] -> [Closed (Sk c)]
 inst = runFresh . mapM instPre

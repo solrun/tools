@@ -83,7 +83,9 @@ library
                        pretty-show,
                        pretty,
                        array,
-                       optparse-applicative
+                       optparse-applicative,
+                       contravariant,
+                       termination-combinators
   build-tools:         alex, happy
 
 executable tip

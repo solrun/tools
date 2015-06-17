@@ -60,8 +60,8 @@ monomorphise' thy = do
         rules = [ (d,declToRule d) | d <- ds ]
         (insts,loops) = specialise rules seeds
     traceM (show (pp rules))
-    traceM (show (pp insts))
     traceM (show (pp loops))
+    traceM (show (pp insts))
     if null loops
       then do
         (insts',renames) <- runWriterT (mapM (uncurry renameDecl) insts)
@@ -178,39 +178,21 @@ declToRule d = usort $ case d of
     SigDecl (Signature f (PolyType tvs args res)) ->
         [ sigRule f tvs t | t <- args ++ [res] ]
     AssertDecl (Formula r tvs b)    ->
-        [ rule
-        | rule@(Rule pre _) <- coactive (exprRecords b)
-        , and [ t `elem` F.toList pre | t <- tvs ]
-          -- all tvs needs to be present in the precondition (the trigger)!
-        ]
+        quadratic
+            [ pre
+            | pre <- exprRecords b
+            , and [ t `elem` F.toList pre | t <- tvs ]
+            ]
     DataDecl (Datatype tc tvs cons) ->
         let tcon x = Con (TCon x) (map Var tvs)
             pred x = Con (Pred x) (map Var tvs)
-        {-
-        let pred x = Con (Pred x) (map Var tvs)
-        in  [pred tc] ++
-            concat
-               [ [ pred k, pred d ] ++
-                 concat
-                     [ [pred proj, Con (Pred tc') (map trType tys)]
-                     | (proj,TyCon tc' tys) <- args
-                     ]
-               | Constructor k d args <- cons
-               ]
-        -}
-       in  (coactive $
+        in (coactive $
               [ tcon tc ] ++
               [ pred f
               | Constructor k d args <- cons
               , f <- [k,d] ++ map fst args
               ]) ++
            [sigRule p tvs t | Constructor _ _ args <- cons, (p,t) <- args ]
-           {-
-           [Rule (tcon tc) (Con Dummy [])] ++
-           [Rule (pred k) (Con Dummy []) | Constructor k _ _ <- cons ] ++
-           [Rule (pred d) (Con Dummy []) | Constructor _ d _ <- cons ] ++
-           [Rule (pred p) (Con Dummy []) | Constructor _ _ args <- cons, (p,_) <- args ]
-           -}
 
     FuncDecl (Function f tvs args res body) ->
         {- concatMap subtermRules $ -}
@@ -218,5 +200,13 @@ declToRule d = usort $ case d of
         map (Rule (Con (Pred f) (map Var tvs))) (exprPredRecords body)
 
 coactive :: [Expr (Con a) a] -> [Rule (Con a) a]
-coactive es = [ Rule p q | (p,qs) <- withPrevious es, q <- qs ]
+coactive []     = []
+coactive [e]    = [Rule e (Con Dummy [])]
+coactive (e:es) = map (Rule e) es ++ map (`Rule` e) es
 
+quadratic :: [Expr (Con a) a] -> [Rule (Con a) a]
+quadratic es = [ Rule p q
+               | n <- [0..length es-1]
+               , let (l,p:r) = splitAt n es
+               , q <- l ++ r
+               ]

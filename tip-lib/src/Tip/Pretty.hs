@@ -39,7 +39,13 @@ instance (Pretty a,Pretty b) => Pretty (a,b) where
   pp (x,y) = parens (pp x <+> "," $\ pp y)
 
 instance (Pretty a) => Pretty [a] where
-  pp xs = brackets (fsep (punctuate "," (map pp xs)))
+  pp xs = brackets (sep (punctuate "," (map pp xs)))
+
+instance Pretty Int where
+  pp = int
+
+instance Pretty () where
+  pp _ = "()"
 
 -- | Variable to 'Doc'
 ppVar :: PrettyVar a => a -> Doc

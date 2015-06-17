@@ -59,9 +59,9 @@ monomorphise' thy = do
         loops :: [Decl a]
         rules = [ (d,declToRule d) | d <- ds ]
         (insts,loops) = specialise rules seeds
-    traceM (show (pp rules))
-    traceM (show (pp loops))
-    traceM (show (pp insts))
+    traceM (show ("rules:" $\ pp rules))
+    traceM (show ("loops:" $\ pp loops))
+    traceM (show ("insts:" $\ pp insts))
     if null loops
       then do
         (insts',renames) <- runWriterT (mapM (uncurry renameDecl) insts)

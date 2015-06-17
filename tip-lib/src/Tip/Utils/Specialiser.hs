@@ -190,12 +190,25 @@ cyclic' e1 e2 | Just m0 <- match e1 e2
 cyclic' _  _  = False
 
 terminating :: forall a c . (Ctx a,Ctx c) => [Rule c a] -> Bool
-terminating (map (mapRuleCtx Old) -> rs) = all (go []) (inst rs)
+terminating (map (mapRuleCtx Old) -> rs) = go S.empty (initHistory (listT exprT)) (map return (inst rs))
   where
-  go :: [Closed (Sk c)] -> Closed (Sk c) -> Bool
-  go old new = traceShow ("go" $\ sep ["old:" $\ pp old, "new:" $\ pp new]) (go' old new)
-  go' old new | or [ cyclic (unSkolem o) (unSkolem new) | o <- old ] = False
-  go' old new = let both = old `union` [new] in all (go both) (unnamedStep rs [new] \\ both)
+  trejs = trace
+  -- go :: Set (Closed (Sk c)) -> History (Closed (Sk c)) -> Closed (Sk c) -> Bool
+  go visited trace [] = trejs "Good!" True
+  go visited trace (new:news)
+    | traceShow ("go" $\ sep ["visited:" $\ pp (S.toList visited)
+                             , "new:" $\ pp new]) False = undefined
+    | head new `S.member` visited = trejs "Drop 1" (go visited trace news)
+    | otherwise =
+        case test trace new of
+          Stop -> trejs "Stop!" False
+          Continue trace' -> go (S.insert (head new) visited)
+                                trace'
+                                (news `union` [ n:new | n <- unnamedStep rs [head new] ])
+
+--  go old new = traceShow ("go" $\ sep ["old:" $\ pp old, "new:" $\ pp new]) (go' old new)
+--  go' old new | or [ cyclic (unSkolem o) (unSkolem new) | o <- old ] = False
+--  go' old new = let both = old `union` [new] in all (go both) (unnamedStep rs [new] \\ both)
 
 union :: Ord a => [a] -> [a] -> [a]
 union (S.fromList -> s1) (S.fromList -> s2) = S.toList (s1 `S.union` s2)
@@ -204,12 +217,14 @@ union (S.fromList -> s1) (S.fromList -> s2) = S.toList (s1 `S.union` s2)
 (\\) (S.fromList -> s1) (S.fromList -> s2) = S.toList (s1 S.\\ s2)
 
 inst :: (Ctx a,Ctx c) => [Rule (Sk c) a] -> [Closed (Sk c)]
-inst = runFresh . mapM instPre
+inst rules = runFresh $
+  do i <- fresh
+     return (map (instPre i) rules)
 
-instPre :: (Ctx a,Ctx c) => Rule (Sk c) a -> Fresh (Closed (Sk c))
-instPre r =
-  do su <- sequence [ (,) v . (`Con` []) <$> fresh | v <- ruleVars r ]
-     return (close su (rule_pre r))
+instPre :: (Ctx a,Ctx c) => Sk c -> Rule (Sk c) a -> Closed (Sk c)
+instPre c r =
+  let su = [ (v,Con c []) | v <- ruleVars r ]
+  in  close su (rule_pre r)
 
 close :: Eq a => [(a,Closed c)] -> Expr c a -> Closed c
 close su (Var v)    = fromMaybe (error "close") (lookup v su)

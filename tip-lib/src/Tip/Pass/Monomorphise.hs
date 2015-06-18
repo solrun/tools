@@ -67,11 +67,11 @@ monomorphise' thy = do
     if null loops
       then do
         (insts',renames) <- runWriterT (mapM (uncurry renameDecl) insts)
-        return $ renameWith (renameRenames renames) (declsToTheory (insts' ++ loops))
+        return $ renameWith (renameRenames renames) (declsToTheory insts')
       else return thy
 
 theorySeeds :: Ord a => Theory a -> [Closed (Con a)]
-theorySeeds Theory{..} = usort (concat [ map close (exprRecords b) | Formula Prove [] b <- thy_asserts ])
+theorySeeds Theory{..} = usort (Con Dummy []:concat [ map close (exprRecords b) | Formula Prove [] b <- thy_asserts ])
 
 exprPredRecords :: forall a . Ord a => Tip.Expr a -> [Expr (Con a) a]
 exprPredRecords e =
@@ -179,11 +179,15 @@ declToRule d = usort $ case d of
     SortDecl (Sort d tvs)         -> [Rule (Con (TCon d) (map Var tvs)) (Con Dummy [])]
     SigDecl (Signature f (PolyType tvs args res)) ->
         [ sigRule f tvs t | t <- args ++ [res] ]
-    AssertDecl (Formula r tvs b)    ->
+    AssertDecl (Formula r tvs b) ->
+        [ Rule (Con Dummy []) (Con Dummy [])
+        | null tvs
+        , Prove <- [r]
+        ] ++
         quadratic
-            [ pre
-            | pre <- exprRecords b
-            , and [ t `elem` F.toList pre | t <- tvs ]
+            [ e
+            | e <- exprRecords b
+            , and [ t `elem` F.toList e | t <- tvs ]
             ]
     DataDecl (Datatype tc tvs cons) ->
         let tcon x = Con (TCon x) (map Var tvs)
@@ -207,6 +211,7 @@ coactive [e]    = [Rule e (Con Dummy [])]
 coactive (e:es) = map (Rule e) es ++ map (`Rule` e) es
 
 quadratic :: [Expr (Con a) a] -> [Rule (Con a) a]
+quadratic [e] = [Rule e (Con Dummy [])]
 quadratic es = [ Rule p q
                | n <- [0..length es-1]
                , let (l,p:r) = splitAt n es

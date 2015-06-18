@@ -14,14 +14,14 @@ import Control.Monad ((>=>))
 import Options.Applicative
 
 class Pass p where
-  runPass   :: (Show a,Name a) => p -> Theory a -> Fresh (Theory a)
+  runPass   :: Name a => p -> Theory a -> Fresh (Theory a)
   passName  :: p -> String
   parsePass :: Parser p
 
 unitPass :: Pass p => p -> Mod FlagFields () -> Parser p
 unitPass p mod = flag' () (long (flagify (passName p)) <> mod) *> pure p
 
-runPassLinted :: (Pass p,Show a,Name a) => p -> Theory a -> Fresh (Theory a)
+runPassLinted :: (Pass p,Name a) => p -> Theory a -> Fresh (Theory a)
 runPassLinted p = runPass p >=> lintM (passName p)
 
 -- | A sum type that supports 'Enum' and 'Bounded'
@@ -38,7 +38,7 @@ instance (Pass a, Pass b) => Pass (Choice a b) where
   runPass   = choice runPass runPass
   parsePass = (First <$> parsePass) <|> (Second <$> parsePass)
 
-runPasses :: (Pass p,Show a,Name a) => [p] -> Theory a -> Fresh (Theory a)
+runPasses :: (Pass p,Name a) => [p] -> Theory a -> Fresh (Theory a)
 runPasses = go []
  where
   go _    [] = return

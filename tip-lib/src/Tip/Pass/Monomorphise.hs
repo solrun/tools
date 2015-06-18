@@ -25,7 +25,9 @@ import Data.Generics.Geniplate
 
 import Data.List (union)
 
-import Debug.Trace
+-- import Debug.Trace
+
+traceM _ = return ()
 
 trListTYPE :: (Type a -> Type a) -> [((a,[Type a]),a)] -> [((a,[Type a]),a)]
 trListTYPE = undefined

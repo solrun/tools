@@ -32,9 +32,9 @@ import Data.Generics.Genifunctors
 
 import Text.PrettyPrint
 
-import Debug.Trace
+-- import Debug.Trace
 
--- traceShow x y = y
+traceShow x y = y
 
 data Expr c a = Var a | Con c [Expr c a]
   deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
@@ -190,6 +190,23 @@ cyclic' e1 e2 | Just m0 <- match e1 e2
 cyclic' _  _  = False
 
 terminating :: forall a c . (Ctx a,Ctx c) => [Rule c a] -> Bool
+terminating (map (mapRuleCtx Old) -> rs) = go 10 S.empty (usort (inst rs))
+  where
+  go :: Int -> Set (Closed (Sk c)) -> [Closed (Sk c)] -> Bool
+  go i visited new
+    | traceShow ("go" $\ sep ["i:" $\ pp i
+                             ,"visited:" $\ pp (S.toList visited)
+                             ,"new:" $\ pp new
+                             ])
+                False = undefined
+  go 0 _ _  = False
+  go _ _ [] = True
+  go i visited new =
+    let both = visited `S.union` S.fromList new
+    in  go (i-1) both (unnamedStep rs new \\ S.toList both)
+
+{-
+terminating :: forall a c . (Ctx a,Ctx c) => [Rule c a] -> Bool
 terminating (map (mapRuleCtx Old) -> rs) = go S.empty (initHistory (listT exprT)) (map return (inst rs))
   where
   trejs = trace
@@ -209,6 +226,7 @@ terminating (map (mapRuleCtx Old) -> rs) = go S.empty (initHistory (listT exprT)
 --  go old new = traceShow ("go" $\ sep ["old:" $\ pp old, "new:" $\ pp new]) (go' old new)
 --  go' old new | or [ cyclic (unSkolem o) (unSkolem new) | o <- old ] = False
 --  go' old new = let both = old `union` [new] in all (go both) (unnamedStep rs [new] \\ both)
+-}
 
 union :: Ord a => [a] -> [a] -> [a]
 union (S.fromList -> s1) (S.fromList -> s2) = S.toList (s1 `S.union` s2)

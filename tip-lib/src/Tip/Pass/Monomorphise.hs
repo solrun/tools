@@ -35,21 +35,6 @@ return []
 trList :: (Type a -> Type a) -> [((a,[Type a]),a)] -> [((a,[Type a]),a)]
 trList = $(genTransformBi 'trListTYPE)
 
-newtype PPVar a = PPVar { unPPVar :: a }
-  deriving (Eq,Ord,PrettyVar)
-
-instance Name a => Name (PPVar a) where
-  fresh = fmap PPVar fresh
-  refresh = fmap PPVar . refresh . unPPVar
-  freshNamed = fmap PPVar . freshNamed
-  refreshNamed s n = fmap PPVar (refreshNamed s (unPPVar n))
-
-instance PrettyVar a => Pretty (PPVar a) where
-  pp (PPVar x) = ppVar x
-
-instance PrettyVar a => Show (PPVar a) where
-  show (PPVar x) = varStr x
-
 monomorphise :: forall a . Name a => Theory a -> Fresh (Theory a)
 monomorphise = fmap (fmap unPPVar) . monomorphise' . fmap PPVar
 

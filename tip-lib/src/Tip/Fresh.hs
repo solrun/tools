@@ -57,3 +57,9 @@ instance Name Int where
   fresh     = Fresh (state (id &&& succ))
   getUnique = id
 
+instance Name a => Name (PPVar a) where
+  fresh = fmap PPVar fresh
+  refresh = fmap PPVar . refresh . unPPVar
+  freshNamed = fmap PPVar . freshNamed
+  refreshNamed s n = fmap PPVar (refreshNamed s (unPPVar n))
+

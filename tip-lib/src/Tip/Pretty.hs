@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Tip.Pretty where
 
 import Text.PrettyPrint
@@ -46,6 +47,15 @@ instance Pretty Int where
 
 instance Pretty () where
   pp _ = "()"
+
+newtype PPVar a = PPVar { unPPVar :: a }
+  deriving (Eq,Ord,PrettyVar)
+
+instance PrettyVar a => Pretty (PPVar a) where
+  pp (PPVar x) = ppVar x
+
+instance PrettyVar a => Show (PPVar a) where
+  show (PPVar x) = varStr x
 
 -- | Variable to 'Doc'
 ppVar :: PrettyVar a => a -> Doc

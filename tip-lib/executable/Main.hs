@@ -65,7 +65,7 @@ handle passes mode s =
                   , LambdaLift, AxiomatizeLambdas
                   , CollapseEqual, RemoveAliases
                   , SimplifyGently, RemoveMatch
-                  , SimplifyGently, Monomorphise, NegateConjecture
+                  , SimplifyGently, Monomorphise, NegateConjecture, AxiomatizeFuncdefs
                   , SimplifyGently
                   ])
               Haskell ->

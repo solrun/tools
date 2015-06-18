@@ -80,7 +80,6 @@ library
                        split,
                        containers,
                        mtl,
-                       pretty-show,
                        pretty,
                        array,
                        optparse-applicative
